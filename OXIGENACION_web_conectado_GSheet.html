@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Evaluación Oxigenación Tisular — msanti20@ucm.es</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input { width: 80px; margin: 2px; }
+    .result { margin-top: 10px; }
+    .alert { font-weight: bold; }
+    .red { color: red; }
+    .green { color: green; }
+    .yellow { color: orange; }
+  </style>
+</head>
+<body>
+  <h2>Evaluación Oxigenación Tisular — <span style="font-weight:normal;">msanti20@ucm.es</span></h2>
+  <form id="formulario">
+    Hb: <input type="number" id="hb" step="any">
+    SaO₂: <input type="number" id="sao2" step="any">
+    PaO₂: <input type="number" id="pao2" step="any">
+    PaCO₂: <input type="number" id="paco2" step="any">
+    SvO₂: <input type="number" id="svo2" step="any">
+    PvO₂: <input type="number" id="pvo2" step="any">
+    PvCO₂: <input type="number" id="pvco2" step="any">
+    <button type="submit">Añadir paciente</button>
+  </form>
+
+  <div class="result">
+    <table border="1" id="tablaResultados">
+      <thead>
+        <tr>
+          <th>Hb</th><th>SaO₂</th><th>PaO₂</th><th>PaCO₂</th><th>SvO₂</th><th>PvO₂</th><th>PvCO₂</th>
+          <th>CaO₂</th><th>CvO₂</th><th>Ca-vO₂</th><th>ΔpCO₂</th><th>VCO₂/VO₂</th><th>IEO₂</th><th>Interpretación</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <button onclick="descargarExcel()">Descargar Excel</button>
+
+  <script>
+    const form = document.getElementById('formulario');
+    const tabla = document.getElementById('tablaResultados').querySelector('tbody');
+    const filaDatos = [];
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const hb = parseFloat(hb.value);
+      const sao2 = parseFloat(sao2.value);
+      const pao2 = parseFloat(pao2.value);
+      const paco2 = parseFloat(paco2.value);
+      const svo2 = parseFloat(svo2.value);
+      const pvo2 = parseFloat(pvo2.value);
+      const pvco2 = parseFloat(pvco2.value);
+
+      const cao2 = 1.34 * hb * sao2 / 100 + 0.0031 * pao2;
+      const cvo2 = 1.34 * hb * svo2 / 100 + 0.0031 * pvo2;
+      const cav = cao2 - cvo2;
+      const dpco2 = pvco2 - paco2;
+      const vco2vo2 = dpco2 / cav;
+      const ieo2 = cav / cao2 * 100;
+
+      let interpretacion = "";
+      if (dpco2 > 6 && vco2vo2 > 1.4) {
+        interpretacion = "Revisa los datos: si ΔpCO₂ y VCO₂/VO₂ alterados, hipoperfusión probable; si IEO₂ elevado, posible bajo gasto";
+      } else if (ieo2 > 35) {
+        interpretacion = "IEO₂ elevado: posible bajo gasto";
+      } else {
+        interpretacion = "Valores dentro de rango";
+      }
+
+      const fila = [
+        hb, sao2, pao2, paco2, svo2, pvo2, pvco2,
+        cao2.toFixed(2), cvo2.toFixed(2), cav.toFixed(2),
+        dpco2.toFixed(2), vco2vo2.toFixed(2), ieo2.toFixed(2),
+        interpretacion
+      ];
+      filaDatos.push(fila);
+
+      const tr = document.createElement('tr');
+      fila.forEach((v, i) => {
+        const td = document.createElement('td');
+        td.textContent = v;
+        if ((i === 10 && v > 6) || (i === 11 && v > 1.4) || (i === 12 && v > 35)) {
+          td.classList.add('red');
+        } else if (i === 12 && v > 30) {
+          td.classList.add('yellow');
+        } else if ((i === 10 && v <= 6) || (i === 11 && v <= 1.4)) {
+          td.classList.add('green');
+        }
+        tr.appendChild(td);
+      });
+      tabla.appendChild(tr);
+
+      fetch("https://script.google.com/macros/s/AKfycbzynBE-EW-hOplYYjyYT09A9V6qOOCq7ZFRK6Uc_qit39XA2gTHepkl09KAirj1v1YM8g/exec", {
+        method: "POST",
+        body: JSON.stringify({
+          hb, sao2, pao2, paco2, svo2, pvo2, pvco2,
+          cao2: cao2.toFixed(2),
+          cvo2: cvo2.toFixed(2),
+          cav: cav.toFixed(2),
+          dpco2: dpco2.toFixed(2),
+          vco2vo2: vco2vo2.toFixed(2),
+          ieo2: ieo2.toFixed(2),
+          interpretacion
+        }),
+        headers: { "Content-Type": "application/json" }
+      });
+
+      form.reset();
+    });
+
+    function descargarExcel() {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([[
+        "Hb","SaO2","PaO2","PaCO2","SvO2","PvO2","PvCO2",
+        "CaO2","CvO2","Ca-vO2","ΔpCO2","VCO2/VO2","IEO2","Interpretación"
+      ], ...filaDatos]);
+      XLSX.utils.book_append_sheet(wb, ws, "Resultados");
+      XLSX.writeFile(wb, "Evaluacion_Oxigenacion.xlsx");
+    }
+  </script>
+</body>
+</html>
